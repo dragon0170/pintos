@@ -24,6 +24,11 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in THREAD_BLOCKED state put by timer_sleep function,
+   that is, processes that are waiting for reaching a wake tick of
+   the thread. */
+static struct list sleep_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -91,6 +96,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&sleep_list);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -145,6 +151,45 @@ thread_print_stats (void)
 {
   printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
           idle_ticks, kernel_ticks, user_ticks);
+}
+
+/* Puts the current thread to sleep list. It will not be scheduled
+   again until awoken by timer_interrupt() in timer.c */
+void
+thread_sleep (int64_t wake_tick)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  struct thread *cur = thread_current ();
+  ASSERT (cur != idle_thread);
+
+  cur->wake_tick = wake_tick;
+  list_push_back (&sleep_list, &cur->elem);
+  thread_block ();
+}
+
+/* Transitions a slept thread T to the ready-to-run state. */
+void
+thread_awake (int64_t ticks)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  if (list_empty (&sleep_list))
+    return;
+  else
+    {
+      struct list_elem *e;
+      for (e = list_begin (&sleep_list); e != list_end (&sleep_list);
+           e = list_next (e))
+      {
+        struct thread *t = list_entry (e, struct thread, elem);
+        if (ticks >= t->wake_tick)
+          {
+            e = list_prev (list_remove (&t->elem));
+            thread_unblock(t);
+          }
+      }
+    }
 }
 
 /* Creates a new kernel thread named NAME with the given initial
