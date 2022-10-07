@@ -251,7 +251,7 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
-static bool
+bool
 thread_priority_more (const struct list_elem *a_, const struct list_elem *b_,
                       void *aux UNUSED)
 {
@@ -388,6 +388,14 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+void
+thread_compare_and_yield (void)
+{
+  struct thread *t = list_entry (list_begin (&ready_list), struct thread, elem);
+  if (thread_current ()->priority < t->priority)
+    thread_yield ();
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
@@ -396,11 +404,7 @@ thread_set_priority (int new_priority)
   if (list_empty (&ready_list))
     return;
   else
-    {
-      struct thread *t = list_entry (list_begin (&ready_list), struct thread, elem);
-      if (thread_current ()->priority < t->priority)
-        thread_yield ();
-    }
+    thread_compare_and_yield ();
 }
 
 /* Returns the current thread's priority. */
