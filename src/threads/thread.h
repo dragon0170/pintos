@@ -88,6 +88,9 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int visible_priority;               /* Visible priority. */
+    struct lock *waiting_lock;                 /* Lock which the thread is waiting for. */
+    struct list locks;                  /* Locks which the thread is holding */
     int64_t wake_tick;
     struct list_elem allelem;           /* List element for all threads list. */
 
@@ -120,6 +123,8 @@ void thread_awake (int64_t);
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
+bool thread_priority_more (const struct list_elem *, const struct list_elem *, void * UNUSED);
+
 void thread_block (void);
 void thread_unblock (struct thread *);
 
@@ -133,6 +138,11 @@ void thread_yield (void);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+
+void thread_compare_and_yield (void);
+void thread_sort_ready_list (void);
+
+void thread_refresh_visible_priority (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
