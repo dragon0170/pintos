@@ -464,15 +464,11 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  enum intr_level old_level = intr_disable();
-
   thread_current()->nice = nice;
   mlfqs_set_priority(thread_current());
   thread_compare_and_yield();
-
-  intr_set_level(old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -514,7 +510,7 @@ void mlfqs_set_priority(struct thread *t)
     return ;
 
 	int div_recent_cpu_4 = convert_int_round(div_fi(t->recent_cpu, 4));
-	int tmp_priority = PRI_MAX - div_recent_cpu_4 - (t->nice * 2);
+	int tmp_priority = PRI_MAX - div_recent_cpu_4 - 2 * t->nice;
 
 	if(tmp_priority < PRI_MIN)
   {
@@ -547,8 +543,7 @@ void mlfqs_set_load_avg(void)
 
   if(thread_current() != idle_thread)
     executable_threads = list_size(&ready_list) + 1;
- 
-	if(thread_current() == idle_thread)
+  else
     executable_threads = list_size(&ready_list);
 
 	int div_1_60 = div_fi(convert_fp(1), 60);
