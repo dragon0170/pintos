@@ -185,8 +185,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     
       if(ticks % TIMER_FREQ == 0)
       {
-        mlfqs_all_set_recent_cpu();
         mlfqs_set_load_avg();
+        mlfqs_all_set_recent_cpu();
       }
     }
   }
