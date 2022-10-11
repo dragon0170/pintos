@@ -1,50 +1,23 @@
-#include <stdint.h>
-
 #define f (1 << 14)
 
-int convert_fp (int n) {
-  return n * f;
-}
+int convert_fp (int);
 
-int convert_int (int x) {
-  return x / f;
-}
+int convert_int (int);
 
-int convert_int_round (int x) {
-  if (x >= 0) 
-    return (x + f / 2) / f;
-  else 
-    return (x - f / 2) / f;
-}
+int convert_int_round (int);
 
-int add_ff (int x, int y) {
-  return x + y;
-}
+int add_ff (int, int);
 
-int sub_ff (int x, int y) {
-  return x - y;
-}
+int sub_ff (int, int);
 
-int add_fi (int x, int n) {
-  return x + n * f;
-}
+int add_fi (int, int);
 
-int sub_fi (int x, int n) {
-  return x - n * f;
-}
+int sub_fi (int, int);
 
-int mult_ff (int x, int y) {
-  return ((int64_t) x) * y / f;
-}
+int mult_ff (int, int);
 
-int mult_fi (int x, int n) {
-  return x * n;
-}
+int mult_fi (int, int);
 
-int div_ff (int x, int y) {
-  return ((int64_t) x) * f / y;
-}
+int div_ff (int, int);
 
-int div_fi (int x, int n) {
-  return x / n;
-}
+int div_fi (int, int);
