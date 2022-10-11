@@ -98,8 +98,8 @@ struct thread
     int64_t wake_tick;
     struct list_elem allelem;           /* List element for all threads list. */
 
-   int nice;
-   int recent_cpu;
+    int nice;
+    int recent_cpu;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -159,11 +159,11 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-void mlfqs_set_priority(struct thread *t);
-void mlfqs_set_recent_cpu(struct thread *t);
-void mlfqs_set_load_avg(void);
-void mlfqs_up_recent_cpu(void);
-void mlfqs_all_set_priority(void);
-void mlfqs_all_set_recent_cpu(void);
+void mlfqs_set_priority (struct thread *t);
+void mlfqs_set_recent_cpu (struct thread *t);
+void mlfqs_set_load_avg (void);
+void mlfqs_up_recent_cpu (void);
+void mlfqs_all_set_priority (void);
+void mlfqs_all_set_recent_cpu (void);
 
 #endif /* threads/thread.h */

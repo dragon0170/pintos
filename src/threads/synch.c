@@ -219,12 +219,12 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
   ASSERT (thread_current ()->waiting_lock == NULL);
 
-  if(thread_mlfqs)
-  {
-    sema_down(&lock->semaphore);
-    lock->holder = thread_current();
-    return;
-  }
+  if (thread_mlfqs)
+    {
+      sema_down (&lock->semaphore);
+      lock->holder = thread_current ();
+      return;
+    }
 
   if (lock->holder != NULL)
     {
@@ -291,11 +291,11 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
 
-  if(thread_mlfqs)
-  {
-    sema_up(&lock->semaphore);
-    return;
-  }
+  if (thread_mlfqs)
+    {
+      sema_up (&lock->semaphore);
+      return;
+    }
 
   list_remove (&lock->elem);
 
