@@ -409,7 +409,13 @@ thread_compare_and_yield (void)
     }
 
   if (thread_get_priority () < t->visible_priority)
-    thread_yield ();
+    {
+      if (intr_context ()) {
+        intr_yield_on_return ();
+      } else {
+        thread_yield ();
+      }
+    }
 }
 
 void
