@@ -20,44 +20,67 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static void save_arguments_to_stack (char **argv, int argc, void **esp);
 
 /* Starts a new thread running a user program loaded from
-   FILENAME.  The new thread may be scheduled (and may even exit)
+   TASK_NAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *task_name)
 {
+<<<<<<< HEAD
   char *fn_copy;
   char *only_fname;
   char** save_ptr;
+=======
+  char *tn_copy, *tn_copy_for_file_name, *file_name, *save_ptr;
+>>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
   tid_t tid;
 
-  /* Make a copy of FILE_NAME.
+  /* Make a copy of TASK_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  tn_copy = palloc_get_page (0);
+  if (tn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (tn_copy, task_name, PGSIZE);
+
+  /* Parse file_name from TASK_NAME. Make a copy of TASK_NAME first. */
+  tn_copy_for_file_name = palloc_get_page (0);
+  if (tn_copy_for_file_name == NULL)
+    {
+      palloc_free_page (tn_copy);
+      return TID_ERROR;
+    }
+  strlcpy (tn_copy_for_file_name, task_name, PGSIZE);
+  file_name = strtok_r (tn_copy_for_file_name, " ", &save_ptr);
 
   only_fname = __strtok_r(file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
+<<<<<<< HEAD
   tid = thread_create (only_fname, PRI_DEFAULT, start_process, fn_copy);
+=======
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, tn_copy);
+>>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    {
+      palloc_free_page (tn_copy);
+      palloc_free_page (tn_copy_for_file_name);
+    }
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *task_name_)
 {
-  char *file_name = file_name_;
+  char *task_name = task_name_;
   struct intr_frame if_;
   bool success;
 
+<<<<<<< HEAD
   //argments parsing
   char *argv[64];
   int argc = 0;
@@ -72,6 +95,20 @@ start_process (void *file_name_)
   }
 
 
+=======
+  /* Get argv, argc from task_name */
+  char *token, *save_ptr;
+  char **argv;
+  int argc = 0;
+
+  argv = palloc_get_page (0);
+  if (argv == NULL)
+    thread_exit ();
+
+  for (token = strtok_r (task_name, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+    argv[argc++] = token;
+>>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -79,11 +116,17 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
+<<<<<<< HEAD
 
   set_user_stack(argv, argc, &if_.esp);
+=======
+  if (success)
+    save_arguments_to_stack (argv, argc, &if_.esp);
+>>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (task_name);
+  palloc_free_page (argv);
   if (!success) 
     thread_exit ();
 
@@ -97,6 +140,7 @@ start_process (void *file_name_)
   NOT_REACHED ();
 }
 
+<<<<<<< HEAD
 void set_user_stack(char **argv, int argc, void **esp)
 {
   int i, j ,k;
@@ -141,6 +185,40 @@ void set_user_stack(char **argv, int argc, void **esp)
   //return address
   *esp = *esp - 4;
   **(void ***)esp = 0;
+=======
+static void save_arguments_to_stack (char **argv, int argc, void **esp) {
+  void *args_addr[argc];
+  int i;
+  for (i = 0; i < argc; i++)
+    {
+      int len_with_null = strlen (argv[i]) + 1;
+      *esp -= len_with_null;
+      memcpy (*esp, argv[i], len_with_null);
+      args_addr[i] = *esp;
+    }
+
+  uint32_t word_align_remainder = (uint32_t) *esp % 4;
+  *esp -= word_align_remainder;
+
+  *esp -= 4;
+  memset (*esp, 0, 4);
+
+  for (i = argc - 1; i >= 0 ; i--)
+    {
+      *esp -= 4;
+      memcpy (*esp, &args_addr[i], 4);
+    }
+
+  void* stack_argv = *esp;
+  *esp -= 4;
+  memcpy (*esp, &stack_argv, 4);
+
+  *esp -= 4;
+  memcpy (*esp, &argc, 4);
+
+  *esp -= 4;
+  memset (*esp, 0, 4);
+>>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
