@@ -29,6 +29,8 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
+  char *only_fname;
+  char** save_ptr;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -38,8 +40,10 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  only_fname = __strtok_r(file_name, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (only_fname, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -54,12 +58,29 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  //argments parsing
+  char *argv[64];
+  int argc = 0;
+  char *token;
+  char *save_ptr;
+  token = __strtok_r(file_name, " ", &save_ptr);
+  while(token != NULL)
+  {
+    argv[argc] = token;   // argv[0] : file name , argc : arguments number
+    token = __strtok_r(NULL, " ", &save_ptr);
+    ++argc;
+  }
+
+
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (argv[0], &if_.eip, &if_.esp);
+
+  set_user_stack(argv, argc, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -74,6 +95,52 @@ start_process (void *file_name_)
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
+}
+
+void set_user_stack(char **argv, int argc, void **esp)
+{
+  int i, j ,k;
+
+  //argv[a][...]
+  for(i = argc - 1 ; i >= 0 ; --i)
+  {
+    for(j = strlen(argv[i]) ; j >= 0 ; --j)
+    {
+      *esp = *esp - 1;    // initial esp : phys_base(highest) , top down insertion
+      **(char **)esp = argv[i][j];
+    }
+  }
+
+  //word-align
+  int round = (int)*esp % 4;    // fit in 4byte format
+  for(k = round ; k > 0 ; --k)
+  {
+    *esp = *esp - 1;
+    **(uint8_t **)esp = 0;
+  }
+
+  //argv[argc]
+  *esp = *esp - 4;
+  **(char ***)esp = 0;
+
+  //argv[a]
+  for(i = argc - 1 ; i >=0 ; --i)
+  {
+    *esp = *esp - 4;
+    **(char ***)esp = argv[i];
+  }
+
+  //argv
+  *esp = *esp - 4;
+  **(char ****)esp = *esp + 4;
+
+  //argc
+  *esp = *esp - 4;
+  **(int **)esp = argc;
+
+  //return address
+  *esp = *esp - 4;
+  **(void ***)esp = 0;
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -214,6 +281,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
+
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
