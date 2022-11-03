@@ -29,13 +29,7 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp);
 tid_t
 process_execute (const char *task_name)
 {
-<<<<<<< HEAD
-  char *fn_copy;
-  char *only_fname;
-  char** save_ptr;
-=======
   char *tn_copy, *tn_copy_for_file_name, *file_name, *save_ptr;
->>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
   tid_t tid;
 
   /* Make a copy of TASK_NAME.
@@ -55,14 +49,11 @@ process_execute (const char *task_name)
   strlcpy (tn_copy_for_file_name, task_name, PGSIZE);
   file_name = strtok_r (tn_copy_for_file_name, " ", &save_ptr);
 
-  only_fname = __strtok_r(file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
-<<<<<<< HEAD
-  tid = thread_create (only_fname, PRI_DEFAULT, start_process, fn_copy);
-=======
+
   tid = thread_create (file_name, PRI_DEFAULT, start_process, tn_copy);
->>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
+
   if (tid == TID_ERROR)
     {
       palloc_free_page (tn_copy);
@@ -80,22 +71,6 @@ start_process (void *task_name_)
   struct intr_frame if_;
   bool success;
 
-<<<<<<< HEAD
-  //argments parsing
-  char *argv[64];
-  int argc = 0;
-  char *token;
-  char *save_ptr;
-  token = __strtok_r(file_name, " ", &save_ptr);
-  while(token != NULL)
-  {
-    argv[argc] = token;   // argv[0] : file name , argc : arguments number
-    token = __strtok_r(NULL, " ", &save_ptr);
-    ++argc;
-  }
-
-
-=======
   /* Get argv, argc from task_name */
   char *token, *save_ptr;
   char **argv;
@@ -108,7 +83,7 @@ start_process (void *task_name_)
   for (token = strtok_r (task_name, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
     argv[argc++] = token;
->>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
+
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -116,13 +91,9 @@ start_process (void *task_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
-<<<<<<< HEAD
 
-  set_user_stack(argv, argc, &if_.esp);
-=======
   if (success)
     save_arguments_to_stack (argv, argc, &if_.esp);
->>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
 
   /* If load failed, quit. */
   palloc_free_page (task_name);
@@ -140,53 +111,8 @@ start_process (void *task_name_)
   NOT_REACHED ();
 }
 
-<<<<<<< HEAD
-void set_user_stack(char **argv, int argc, void **esp)
+static void save_arguments_to_stack (char **argv, int argc, void **esp) 
 {
-  int i, j ,k;
-
-  //argv[a][...]
-  for(i = argc - 1 ; i >= 0 ; --i)
-  {
-    for(j = strlen(argv[i]) ; j >= 0 ; --j)
-    {
-      *esp = *esp - 1;    // initial esp : phys_base(highest) , top down insertion
-      **(char **)esp = argv[i][j];
-    }
-  }
-
-  //word-align
-  int round = (int)*esp % 4;    // fit in 4byte format
-  for(k = round ; k > 0 ; --k)
-  {
-    *esp = *esp - 1;
-    **(uint8_t **)esp = 0;
-  }
-
-  //argv[argc]
-  *esp = *esp - 4;
-  **(char ***)esp = 0;
-
-  //argv[a]
-  for(i = argc - 1 ; i >=0 ; --i)
-  {
-    *esp = *esp - 4;
-    **(char ***)esp = argv[i];
-  }
-
-  //argv
-  *esp = *esp - 4;
-  **(char ****)esp = *esp + 4;
-
-  //argc
-  *esp = *esp - 4;
-  **(int **)esp = argc;
-
-  //return address
-  *esp = *esp - 4;
-  **(void ***)esp = 0;
-=======
-static void save_arguments_to_stack (char **argv, int argc, void **esp) {
   void *args_addr[argc];
   int i;
   for (i = 0; i < argc; i++)
@@ -218,7 +144,7 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp) {
 
   *esp -= 4;
   memset (*esp, 0, 4);
->>>>>>> 14b4637e310c79271861a9fe318e7f6c4ae84e77
+
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
