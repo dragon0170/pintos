@@ -3,8 +3,27 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
+
+static void check_user_address_valid (void *);
+static void get_arguments (void *sp, void **args, uint8_t num);
+
+static void halt (void);
+static void exit (int status);
+static int exec (const char *cmd_line);
+static int wait (int pid);
+static bool create (const char *file, unsigned initial_size);
+static bool remove (const char *file);
+static int open (const char *file);
+static int filesize (int fd);
+static int read (int fd, void *buffer, unsigned size);
+static int write (int fd, const void *buffer, unsigned size);
+static void seek (int fd, unsigned position);
+static unsigned tell (int fd);
+static void close (int fd);
 
 void
 syscall_init (void) 
@@ -15,6 +34,221 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
+  int i;
+  for (i = 0; i < 4; i++)
+    {
+      check_user_address_valid (f->esp + i);
+    }
+  int syscall_number = *(int *) (f->esp);
+  switch (syscall_number)
+    {
+      case SYS_HALT:
+        {
+          halt ();
+          break;
+        }
+      case SYS_EXIT:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          exit (*(int *) (args[0]));
+          break;
+        }
+      case SYS_EXEC:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          f->eax = exec (*(const char **) (args[0]));
+          break;
+        }
+      case SYS_WAIT:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          f->eax = wait (*(int *) (args[0]));
+          break;
+        }
+      case SYS_CREATE:
+        {
+          void *args[2];
+          get_arguments (f->esp + 4, args, 2);
+          f->eax = create (*(const char **) (args[0]), *(unsigned *) (args[1]));
+          break;
+        }
+      case SYS_REMOVE:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          f->eax = remove (*(const char **) (args[0]));
+          break;
+        }
+      case SYS_OPEN:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          f->eax = open (*(const char **) (args[0]));
+          break;
+        }
+      case SYS_FILESIZE:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          f->eax = filesize (*(int *) (args[0]));
+          break;
+        }
+      case SYS_READ:
+        {
+          void *args[3];
+          get_arguments (f->esp + 4, args, 3);
+          f->eax = read (*(int *) (args[0]), *(void **) (args[1]), *(unsigned *) (args[2]));
+          break;
+        }
+      case SYS_WRITE:
+        {
+          void *args[3];
+          get_arguments (f->esp + 4, args, 3);
+          f->eax = write (*(int *) (args[0]), *(const void **) (args[1]), *(unsigned *) (args[2]));
+          break;
+        }
+      case SYS_SEEK:
+        {
+          void *args[2];
+          get_arguments (f->esp + 4, args, 2);
+          seek (*(int *) (args[0]), *(unsigned *) (args[1]));
+          break;
+        }
+      case SYS_TELL:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          f->eax = tell (*(int *) (args[0]));
+          break;
+        }
+      case SYS_CLOSE:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          close (*(int *) (args[0]));
+          break;
+        }
+      default:
+        {
+          exit (-1);
+          break;
+        }
+    }
+}
+
+static void
+check_user_address_valid (void *uaddr)
+{
+  if (!is_user_vaddr (uaddr))
+    exit (-1);
+
+  if (pagedir_get_page (thread_current ()->pagedir, uaddr) == NULL)
+    exit (-1);
+}
+
+static void
+get_arguments (void *sp, void **args, uint8_t num)
+{
+  int i, j;
+  for (i = 0; i < num; i++)
+    {
+      for (j = 0; j < 4; j++)
+        {
+          check_user_address_valid (sp + 4 * i + j);
+        }
+      args[i] = sp + 4 * i;
+    }
+}
+
+static void
+halt (void)
+{
+  printf ("halt system call!\n");
+  thread_exit ();
+}
+
+static void
+exit (int status)
+{
+  thread_exit ();
+}
+
+static int
+exec (const char *cmd_line)
+{
+  printf ("exec system call!\n");
+  thread_exit ();
+}
+
+static int
+wait (int pid)
+{
+  printf ("wait system call!\n");
+  thread_exit ();
+}
+
+static bool
+create (const char *file, unsigned initial_size)
+{
+  printf ("create system call!\n");
+  thread_exit ();
+}
+
+static bool
+remove (const char *file)
+{
+  printf ("remove system call!\n");
+  thread_exit ();
+}
+
+static int
+open (const char *file)
+{
+  printf ("open system call!\n");
+  thread_exit ();
+}
+
+static int
+filesize (int fd)
+{
+  printf ("filesize system call!\n");
+  thread_exit ();
+}
+
+static int
+read (int fd, void *buffer, unsigned size)
+{
+  printf ("read system call!\n");
+  thread_exit ();
+}
+
+static int
+write (int fd, const void *buffer, unsigned size)
+{
+  printf ("write system call!\n");
+  thread_exit ();
+}
+
+static void
+seek (int fd, unsigned position)
+{
+  printf ("seek system call!\n");
+  thread_exit ();
+}
+
+static unsigned
+tell (int fd)
+{
+  printf ("tell system call!\n");
+  thread_exit ();
+}
+
+static void
+close (int fd)
+{
+  printf ("close system call!\n");
   thread_exit ();
 }
