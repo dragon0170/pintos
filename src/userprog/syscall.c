@@ -173,6 +173,7 @@ halt (void)
 static void
 exit (int status)
 {
+  printf ("%s: exit(%d)\n", thread_name (), status);
   thread_exit ();
 }
 
