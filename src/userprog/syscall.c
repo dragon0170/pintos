@@ -228,8 +228,20 @@ read (int fd, void *buffer, unsigned size)
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  printf ("write system call!\n");
-  thread_exit ();
+  unsigned i;
+  for (i = 0; i < size; i++)
+    check_user_address_valid ((void *) buffer + i);
+
+  if (fd == 1)
+    {
+      putbuf (buffer, size);
+      return size;
+    }
+  else
+    {
+      /* TODO: should implement file write */
+      thread_exit ();
+    }
 }
 
 static void
