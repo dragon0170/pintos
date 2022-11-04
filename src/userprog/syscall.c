@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "devices/shutdown.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -166,8 +167,7 @@ get_arguments (void *sp, void **args, uint8_t num)
 static void
 halt (void)
 {
-  printf ("halt system call!\n");
-  thread_exit ();
+  shutdown_power_off ();
 }
 
 static void
