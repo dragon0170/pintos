@@ -152,7 +152,7 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp) {
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  for (;;) {}
 }
 
 /* Free the current process's resources. */
