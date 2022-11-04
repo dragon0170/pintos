@@ -3,8 +3,14 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
+
+static void check_user_address_valid (void *);
+
+static void exit (int);
 
 void
 syscall_init (void) 
@@ -16,5 +22,21 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   printf ("system call!\n");
+  thread_exit ();
+}
+
+static void
+check_user_address_valid (void *uaddr)
+{
+  if (!is_user_vaddr (uaddr))
+    exit (-1);
+
+  if (pagedir_get_page (thread_current ()->pagedir, uaddr) == NULL)
+    exit (-1);
+}
+
+static void
+exit (int status)
+{
   thread_exit ();
 }
