@@ -12,7 +12,6 @@ static void check_user_address_valid (void *);
 static void get_arguments (void *sp, void **args, uint8_t num);
 
 static void halt (void);
-static void exit (int status);
 static int exec (const char *cmd_line);
 static int wait (int pid);
 static bool create (const char *file, unsigned initial_size);
@@ -170,7 +169,7 @@ halt (void)
   thread_exit ();
 }
 
-static void
+void
 exit (int status)
 {
   printf ("%s: exit(%d)\n", thread_name (), status);
