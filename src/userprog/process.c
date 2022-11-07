@@ -178,6 +178,14 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  while (!list_empty (&cur->fd_table))
+    {
+      struct file_descriptor *fd =
+              list_entry (list_pop_front (&cur->fd_table), struct file_descriptor, elem);
+      file_close (fd->file);
+      palloc_free_page (fd);
+    }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -526,4 +534,67 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+int
+create_file_descriptor (struct file *file)
+{
+  ASSERT (file != NULL);
+
+  struct thread *t = thread_current ();
+  struct file_descriptor *desc = palloc_get_page (0);
+  if (desc == NULL)
+    return -1;
+
+  if (list_empty (&t->fd_table))
+    desc->id = 2;
+  else
+    {
+      struct file_descriptor *last_desc =
+              list_entry (list_back (&t->fd_table), struct file_descriptor, elem);
+      desc->id = last_desc->id + 1;
+    }
+  desc->file = file;
+  list_push_back (&t->fd_table, &desc->elem);
+
+  return desc->id;
+}
+
+struct file *
+get_file (int fd)
+{
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  for (e = list_begin (&t->fd_table); e != list_end (&t->fd_table);
+       e = list_next (e))
+    {
+      struct file_descriptor *desc = list_entry (e, struct file_descriptor, elem);
+      if (desc->id == fd)
+        {
+          return desc->file;
+        }
+    }
+
+  return NULL;
+}
+
+void
+remove_file (int fd)
+{
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  for (e = list_begin (&t->fd_table); e != list_end (&t->fd_table);
+       e = list_next (e))
+    {
+      struct file_descriptor *desc = list_entry (e, struct file_descriptor, elem);
+      if (desc->id == fd)
+        {
+          list_remove (&desc->elem);
+          file_close (desc->file);
+          palloc_free_page (desc);
+          return;
+        }
+    }
 }

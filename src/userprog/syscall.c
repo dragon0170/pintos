@@ -4,7 +4,10 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "userprog/pagedir.h"
+#include "userprog/process.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -25,9 +28,12 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
+static struct lock filesys_lock;
+
 void
 syscall_init (void) 
 {
+  lock_init (&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -208,8 +214,17 @@ remove (const char *file)
 static int
 open (const char *file)
 {
-  printf ("open system call!\n");
-  thread_exit ();
+  check_user_address_valid ((void *) file);
+  int fd = -1;
+
+  lock_acquire (&filesys_lock);
+  struct file* opened_file = filesys_open (file);
+  if (opened_file != NULL)
+    {
+      fd = create_file_descriptor (opened_file);
+    }
+  lock_release (&filesys_lock);
+  return fd;
 }
 
 static int

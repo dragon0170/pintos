@@ -4,6 +4,14 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "filesys/file.h"
+
+struct file_descriptor
+  {
+    int id;
+    struct file *file;
+    struct list_elem elem;  /* List element for thread's fd_table. */
+  };
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -107,6 +115,7 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct list fd_table;               /* File descriptor table */
 #endif
 
     /* Owned by thread.c. */
