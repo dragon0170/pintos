@@ -159,7 +159,7 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  for (;;) {}
 }
 
 /* Free the current process's resources. */
@@ -185,6 +185,16 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  while (!list_empty (&cur->fd_table))
+    {
+      struct file_descriptor *fd =
+              list_entry (list_pop_front (&cur->fd_table), struct file_descriptor, elem);
+      file_close (fd->file);
+      palloc_free_page (fd);
+    }
+
+  file_close (cur->executable);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -295,11 +305,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Open executable file. */
   file = filesys_open (file_name);
-  if (file == NULL) 
+  thread_current ()->executable = file;
+  if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+  file_deny_write (file);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -384,7 +396,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
   return success;
 }
 
@@ -534,4 +545,67 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+int
+create_file_descriptor (struct file *file)
+{
+  ASSERT (file != NULL);
+
+  struct thread *t = thread_current ();
+  struct file_descriptor *desc = palloc_get_page (0);
+  if (desc == NULL)
+    return -1;
+
+  if (list_empty (&t->fd_table))
+    desc->id = 2;
+  else
+    {
+      struct file_descriptor *last_desc =
+              list_entry (list_back (&t->fd_table), struct file_descriptor, elem);
+      desc->id = last_desc->id + 1;
+    }
+  desc->file = file;
+  list_push_back (&t->fd_table, &desc->elem);
+
+  return desc->id;
+}
+
+struct file *
+get_file (int fd)
+{
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  for (e = list_begin (&t->fd_table); e != list_end (&t->fd_table);
+       e = list_next (e))
+    {
+      struct file_descriptor *desc = list_entry (e, struct file_descriptor, elem);
+      if (desc->id == fd)
+        {
+          return desc->file;
+        }
+    }
+
+  return NULL;
+}
+
+void
+remove_file (int fd)
+{
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  for (e = list_begin (&t->fd_table); e != list_end (&t->fd_table);
+       e = list_next (e))
+    {
+      struct file_descriptor *desc = list_entry (e, struct file_descriptor, elem);
+      if (desc->id == fd)
+        {
+          list_remove (&desc->elem);
+          file_close (desc->file);
+          palloc_free_page (desc);
+          return;
+        }
+    }
 }
