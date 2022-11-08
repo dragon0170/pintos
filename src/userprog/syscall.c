@@ -4,8 +4,10 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -25,9 +27,12 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
+static struct lock filesys_lock;
+
 void
 syscall_init (void) 
 {
+  lock_init (&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -193,15 +198,25 @@ wait (int pid)
 static bool
 create (const char *file, unsigned initial_size)
 {
-  printf ("create system call!\n");
-  thread_exit ();
+  check_user_address_valid ((void *) file);
+
+  lock_acquire (&filesys_lock);
+  bool success = filesys_create (file, initial_size);
+  lock_release (&filesys_lock);
+
+  return success;
 }
 
 static bool
 remove (const char *file)
 {
-  printf ("remove system call!\n");
-  thread_exit ();
+  check_user_address_valid ((void *) file);
+
+  lock_acquire (&filesys_lock);
+  bool success = filesys_remove (file);
+  lock_release (&filesys_lock);
+
+  return success;
 }
 
 static int
