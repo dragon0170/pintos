@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
+#include "devices/shutdown.h"
 #include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
@@ -15,7 +16,6 @@ static void check_user_address_valid (void *);
 static void get_arguments (void *sp, void **args, uint8_t num);
 
 static void halt (void);
-static void exit (int status);
 static int exec (const char *cmd_line);
 static int wait (int pid);
 static bool create (const char *file, unsigned initial_size);
@@ -172,11 +172,10 @@ get_arguments (void *sp, void **args, uint8_t num)
 static void
 halt (void)
 {
-  printf ("halt system call!\n");
-  thread_exit ();
+  shutdown_power_off ();
 }
 
-static void
+void
 exit (int status)
 {
   printf ("%s: exit(%d)\n", thread_name (), status);
@@ -200,15 +199,25 @@ wait (int pid)
 static bool
 create (const char *file, unsigned initial_size)
 {
-  printf ("create system call!\n");
-  thread_exit ();
+  check_user_address_valid ((void *) file);
+
+  lock_acquire (&filesys_lock);
+  bool success = filesys_create (file, initial_size);
+  lock_release (&filesys_lock);
+
+  return success;
 }
 
 static bool
 remove (const char *file)
 {
-  printf ("remove system call!\n");
-  thread_exit ();
+  check_user_address_valid ((void *) file);
+
+  lock_acquire (&filesys_lock);
+  bool success = filesys_remove (file);
+  lock_release (&filesys_lock);
+
+  return success;
 }
 
 static int
