@@ -6,6 +6,7 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 
@@ -222,8 +223,17 @@ remove (const char *file)
 static int
 open (const char *file)
 {
-  printf ("open system call!\n");
-  thread_exit ();
+  check_user_address_valid ((void *) file);
+  int fd = -1;
+
+  lock_acquire (&filesys_lock);
+  struct file* opened_file = filesys_open (file);
+  if (opened_file != NULL)
+    {
+      fd = create_file_descriptor (opened_file);
+    }
+  lock_release (&filesys_lock);
+  return fd;
 }
 
 static int
