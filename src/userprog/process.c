@@ -17,6 +17,8 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -31,6 +33,8 @@ process_execute (const char *task_name)
 {
   char *tn_copy, *tn_copy_for_file_name, *file_name, *save_ptr;
   tid_t tid;
+
+  //printf("into process_execute \n");
 
   /* Make a copy of TASK_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -54,11 +58,23 @@ process_execute (const char *task_name)
 
   tid = thread_create (file_name, PRI_DEFAULT, start_process, tn_copy);
 
+
   if (tid == TID_ERROR)
     {
       palloc_free_page (tn_copy);
       palloc_free_page (tn_copy_for_file_name);
     }
+
+  //printf("into process_execute : wait load \n");
+
+  struct thread *parent = thread_current();
+  sema_down(&parent->wait_load);
+
+  //printf("into process_execute : finish load (%d)\n", parent->success_load);
+
+  if(parent->success_load == false)
+    return -1;
+
   return tid;
 }
 
@@ -70,15 +86,23 @@ start_process (void *task_name_)
   char *task_name = task_name_;
   struct intr_frame if_;
   bool success;
+  struct thread *child = thread_current();
 
   /* Get argv, argc from task_name */
   char *token, *save_ptr;
   char **argv;
   int argc = 0;
 
+  //printf("into process_start \n");
+
   argv = palloc_get_page (0);
   if (argv == NULL)
+  {
+    child->parent->success_load = false;
+    sema_up(&child->parent->wait_load);
     thread_exit ();
+    //list_remove(&child->child_elem);
+  }
 
   for (token = strtok_r (task_name, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
@@ -92,14 +116,27 @@ start_process (void *task_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
 
-  if (success)
-    save_arguments_to_stack (argv, argc, &if_.esp);
+  //printf("into process_start : finish load (%d) \n", success);
 
-  /* If load failed, quit. */
-  palloc_free_page (task_name);
-  palloc_free_page (argv);
   if (!success) 
+  {
+    palloc_free_page (task_name);
+    palloc_free_page (argv);
+
+    child->parent->success_load = false;
+    sema_up(&child->parent->wait_load);
     thread_exit ();
+    //list_remove(&child->child_elem);
+  }
+  else
+  {
+    save_arguments_to_stack (argv, argc, &if_.esp);
+    palloc_free_page (task_name);
+    palloc_free_page (argv);
+
+    child->parent->success_load = true;
+    sema_up(&child->parent->wait_load);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -159,7 +196,23 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for (;;) {}
+  struct thread *parent = thread_current();
+  struct thread *child = get_child_process(child_tid);
+  int child_exit_status;
+
+  //printf("into process_wait \n");
+
+  if(child == NULL)
+    return -1;
+
+  //printf("into process_wait : wait child\n");
+  sema_down(&parent->wait_exit);
+  //printf("into process_wait : finish child (%d)\n", parent->exit_status);
+
+  child_exit_status = parent->exit_status;
+  //list_remove(child);
+
+  return child_exit_status;
 }
 
 /* Free the current process's resources. */
@@ -168,6 +221,8 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  //printf("into process_exit \n");
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -195,6 +250,7 @@ process_exit (void)
     }
 
   file_close (cur->executable);
+  //printf("into process_exit : out\n");
 }
 
 /* Sets up the CPU for running user code in the current
@@ -608,4 +664,26 @@ remove_file (int fd)
           return;
         }
     }
+}
+
+struct thread * get_child_process(int pid)
+{
+  struct thread *parent = thread_current();
+  struct list_elem *e = NULL;
+  struct thread *child = NULL;
+
+  for(e = list_begin(&parent->child_list) ; e != list_end(&parent->child_list) ; e = list_next(e))
+  {
+    child = list_entry(e, struct thread, child_elem);
+    if(child->tid == pid)
+      return child;
+  }
+
+  return NULL;
+}
+
+void remove_child_process(struct thread *cp)
+{
+  list_remove(&cp->child_elem);
+  palloc_free_page(cp);
 }

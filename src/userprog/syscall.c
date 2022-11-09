@@ -46,6 +46,8 @@ syscall_handler (struct intr_frame *f UNUSED)
       check_user_address_valid (f->esp + i);
     }
   int syscall_number = *(int *) (f->esp);
+
+
   switch (syscall_number)
     {
       case SYS_HALT:
@@ -64,6 +66,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         {
           void *args[1];
           get_arguments (f->esp + 4, args, 1);
+          check_user_address_valid((void *)args[0]);
           f->eax = exec (*(const char **) (args[0]));
           break;
         }
@@ -178,22 +181,25 @@ halt (void)
 void
 exit (int status)
 {
+  struct thread *child = thread_current();
+  child->exit_status = status;
+  child->parent->exit_status = status;
+
   printf ("%s: exit(%d)\n", thread_name (), status);
-  thread_exit ();
+
+  thread_exit();
 }
 
 static int
 exec (const char *cmd_line)
 {
-  printf ("exec system call!\n");
-  thread_exit ();
+  return process_execute(cmd_line);
 }
 
 static int
 wait (int pid)
 {
-  printf ("wait system call!\n");
-  thread_exit ();
+  return process_wait(pid);
 }
 
 static bool
