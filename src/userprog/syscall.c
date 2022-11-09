@@ -9,6 +9,7 @@
 #include "userprog/process.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
+#include "devices/input.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -251,8 +252,29 @@ filesize (int fd)
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  printf ("read system call!\n");
-  thread_exit ();
+  unsigned i;
+  for (i = 0; i < size; i++)
+    check_user_address_valid (buffer + i);
+
+  if (fd == 0)
+    {
+      for (i = 0; i < size; i++)
+        *(uint8_t *) (buffer + i) = input_getc ();
+      return size;
+    }
+  else
+    {
+      lock_acquire (&filesys_lock);
+      struct file *file = get_file (fd);
+      if (file == NULL)
+        {
+          lock_release (&filesys_lock);
+          return -1;
+        }
+      int bytes_read = file_read (file, buffer, size);
+      lock_release (&filesys_lock);
+      return bytes_read;
+    }
 }
 
 static int
@@ -269,8 +291,16 @@ write (int fd, const void *buffer, unsigned size)
     }
   else
     {
-      /* TODO: should implement file write */
-      thread_exit ();
+      lock_acquire (&filesys_lock);
+      struct file *file = get_file (fd);
+      if (file == NULL)
+        {
+          lock_release (&filesys_lock);
+          return -1;
+        }
+      int bytes_written = file_write (file, buffer, size);
+      lock_release (&filesys_lock);
+      return bytes_written;
     }
 }
 
