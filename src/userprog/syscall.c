@@ -291,6 +291,7 @@ tell (int fd)
 static void
 close (int fd)
 {
-  printf ("close system call!\n");
-  thread_exit ();
+  lock_acquire (&filesys_lock);
+  remove_file (fd);
+  lock_release (&filesys_lock);
 }
