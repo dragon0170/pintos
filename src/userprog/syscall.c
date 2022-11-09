@@ -239,8 +239,13 @@ open (const char *file)
 static int
 filesize (int fd)
 {
-  printf ("filesize system call!\n");
-  thread_exit ();
+  struct file *file = get_file (fd);
+  if (file == NULL)
+    return -1;
+  lock_acquire (&filesys_lock);
+  int size = file_length (file);
+  lock_release (&filesys_lock);
+  return size;
 }
 
 static int
