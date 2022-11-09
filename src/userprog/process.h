@@ -13,3 +13,5 @@ struct file * get_file (int fd);
 void remove_file (int fd);
 
 #endif /* userprog/process.h */
+
+struct thread * get_child_process(int pid);

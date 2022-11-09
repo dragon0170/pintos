@@ -344,7 +344,7 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
-
+  //printf("into thread_exit \n");
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -354,9 +354,16 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+
+  //printf("into thread_exit : wake parent\n");
+  struct thread *child = thread_current();
+  sema_up(&child->parent->wait_exit);
+
   thread_current ()->status = THREAD_DYING;
   schedule ();
+  //printf("finish schedule \n");
   NOT_REACHED ();
+  //printf("into thread_exit : out\n");
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
@@ -689,6 +696,18 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->locks);
   list_init (&t->fd_table);
 
+#ifdef USERPROG
+
+  t->parent = running_thread();
+  t->success_load = false;
+
+  list_init(&t->child_list);
+  sema_init(&t->wait_load, 0);
+  sema_init(&t->wait_exit, 0);
+  list_push_back(&t->parent->child_list, &t->child_elem);
+
+#endif
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -763,7 +782,8 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      //list_remove(&prev->child_elem);
+      //palloc_free_page (prev);
     }
 }
 
