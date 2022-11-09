@@ -355,9 +355,9 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
 
+  //printf("into thread_exit : wake parent\n");
   struct thread *child = thread_current();
   sema_up(&child->parent->wait_exit);
-  //printf("into thread_exit : wake parent\n");
 
   thread_current ()->status = THREAD_DYING;
   schedule ();
@@ -782,8 +782,8 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      list_remove(&prev->child_elem);
-      palloc_free_page (prev);
+      //list_remove(&prev->child_elem);
+      //palloc_free_page (prev);
     }
 }
 

@@ -144,6 +144,7 @@ start_process (void *task_name_)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+    //printf("into process_start : start user program");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -210,7 +211,7 @@ process_wait (tid_t child_tid UNUSED)
   //printf("into process_wait : finish child (%d)\n", parent->exit_status);
 
   child_exit_status = parent->exit_status;
-  //list_remove(child);
+  remove_child_process(child);
 
   return child_exit_status;
 }
