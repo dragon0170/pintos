@@ -277,15 +277,30 @@ write (int fd, const void *buffer, unsigned size)
 static void
 seek (int fd, unsigned position)
 {
-  printf ("seek system call!\n");
-  thread_exit ();
+  lock_acquire (&filesys_lock);
+  struct file *file = get_file (fd);
+  if (file == NULL)
+    {
+      lock_release (&filesys_lock);
+      exit (-1);
+    }
+  file_seek (file, position);
+  lock_release (&filesys_lock);
 }
 
 static unsigned
 tell (int fd)
 {
-  printf ("tell system call!\n");
-  thread_exit ();
+  lock_acquire (&filesys_lock);
+  struct file *file = get_file (fd);
+  if (file == NULL)
+    {
+      lock_release (&filesys_lock);
+      exit (-1);
+    }
+  int position = file_tell (file);
+  lock_release (&filesys_lock);
+  return position;
 }
 
 static void
