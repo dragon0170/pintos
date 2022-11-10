@@ -34,7 +34,6 @@ process_execute (const char *task_name)
   char *tn_copy, *tn_copy_for_file_name, *file_name, *save_ptr;
   tid_t tid;
 
-  //printf("into process_execute \n");
 
   /* Make a copy of TASK_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -65,12 +64,10 @@ process_execute (const char *task_name)
       palloc_free_page (tn_copy_for_file_name);
     }
 
-  //printf("into process_execute : wait load \n");
 
   struct thread *parent = thread_current();
   sema_down(&parent->wait_load);
 
-  //printf("into process_execute : finish load (%d)\n", parent->success_load);
 
   if(parent->success_load == false)
     return -1;
@@ -93,7 +90,6 @@ start_process (void *task_name_)
   char **argv;
   int argc = 0;
 
-  //printf("into process_start \n");
 
   argv = palloc_get_page (0);
   if (argv == NULL)
@@ -101,7 +97,6 @@ start_process (void *task_name_)
     child->parent->success_load = false;
     sema_up(&child->parent->wait_load);
     thread_exit ();
-    //list_remove(&child->child_elem);
   }
 
   for (token = strtok_r (task_name, " ", &save_ptr); token != NULL;
@@ -116,7 +111,6 @@ start_process (void *task_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
 
-  //printf("into process_start : finish load (%d) \n", success);
 
   if (!success) 
   {
@@ -126,7 +120,6 @@ start_process (void *task_name_)
     child->parent->success_load = false;
     sema_up(&child->parent->wait_load);
     thread_exit ();
-    //list_remove(&child->child_elem);
   }
   else
   {
@@ -201,16 +194,13 @@ process_wait (tid_t child_tid UNUSED)
   struct thread *child = get_child_process(child_tid);
   int child_exit_status;
 
-  //printf("into process_wait \n");
 
   if(child == NULL)
     return -1;
 
-  //printf("into process_wait : wait child\n");
-  sema_down(&parent->wait_exit);
-  //printf("into process_wait : finish child (%d)\n", parent->exit_status);
+  sema_down(&child->wait_exit);
 
-  child_exit_status = parent->exit_status;
+  child_exit_status = child->exit_status;
   remove_child_process(child);
 
   return child_exit_status;
@@ -223,7 +213,6 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  //printf("into process_exit \n");
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -251,7 +240,6 @@ process_exit (void)
     }
 
   file_close (cur->executable);
-  //printf("into process_exit : out\n");
 }
 
 /* Sets up the CPU for running user code in the current

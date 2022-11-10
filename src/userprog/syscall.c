@@ -184,7 +184,6 @@ exit (int status)
 {
   struct thread *child = thread_current();
   child->exit_status = status;
-  child->parent->exit_status = status;
 
   printf ("%s: exit(%d)\n", thread_name (), status);
 

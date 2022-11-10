@@ -344,7 +344,7 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
-  //printf("into thread_exit \n");
+ 
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -355,15 +355,13 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
 
-  //printf("into thread_exit : wake parent\n");
   struct thread *child = thread_current();
-  sema_up(&child->parent->wait_exit);
+  sema_up(&child->wait_exit);
+
 
   thread_current ()->status = THREAD_DYING;
   schedule ();
-  //printf("finish schedule \n");
   NOT_REACHED ();
-  //printf("into thread_exit : out\n");
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
@@ -782,8 +780,6 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      //list_remove(&prev->child_elem);
-      //palloc_free_page (prev);
     }
 }
 
