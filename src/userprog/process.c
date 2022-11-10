@@ -58,10 +58,11 @@ process_execute (const char *task_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, tn_copy);
 
 
+  palloc_free_page (tn_copy_for_file_name);
   if (tid == TID_ERROR)
     {
       palloc_free_page (tn_copy);
-      palloc_free_page (tn_copy_for_file_name);
+      return tid;
     }
 
 
@@ -94,6 +95,8 @@ start_process (void *task_name_)
   argv = palloc_get_page (0);
   if (argv == NULL)
   {
+    palloc_free_page (task_name);
+
     child->parent->success_load = false;
     sema_up(&child->parent->wait_load);
     thread_exit ();
