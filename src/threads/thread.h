@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "filesys/file.h"
+#include "threads/synch.h"
 
 struct file_descriptor
   {
@@ -12,6 +13,7 @@ struct file_descriptor
     struct file *file;
     struct list_elem elem;  /* List element for thread's fd_table. */
   };
+
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -117,6 +119,15 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *executable;            /* Executable file pointer for user program */
     struct list fd_table;               /* File descriptor table */
+
+    struct thread *parent;
+    struct list child_list;
+    struct list_elem child_elem;
+    struct semaphore wait_load;
+    struct semaphore wait_exit;
+
+    int exit_status;
+    bool success_load;
 #endif
 
     /* Owned by thread.c. */

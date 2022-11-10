@@ -17,6 +17,8 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -31,6 +33,7 @@ process_execute (const char *task_name)
 {
   char *tn_copy, *tn_copy_for_file_name, *file_name, *save_ptr;
   tid_t tid;
+
 
   /* Make a copy of TASK_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -49,13 +52,27 @@ process_execute (const char *task_name)
   strlcpy (tn_copy_for_file_name, task_name, PGSIZE);
   file_name = strtok_r (tn_copy_for_file_name, " ", &save_ptr);
 
+
   /* Create a new thread to execute FILE_NAME. */
+
   tid = thread_create (file_name, PRI_DEFAULT, start_process, tn_copy);
+
+
+  palloc_free_page (tn_copy_for_file_name);
   if (tid == TID_ERROR)
     {
       palloc_free_page (tn_copy);
-      palloc_free_page (tn_copy_for_file_name);
+      return tid;
     }
+
+
+  struct thread *parent = thread_current();
+  sema_down(&parent->wait_load);
+
+
+  if(parent->success_load == false)
+    return -1;
+
   return tid;
 }
 
@@ -67,19 +84,28 @@ start_process (void *task_name_)
   char *task_name = task_name_;
   struct intr_frame if_;
   bool success;
+  struct thread *child = thread_current();
 
   /* Get argv, argc from task_name */
   char *token, *save_ptr;
   char **argv;
   int argc = 0;
 
+
   argv = palloc_get_page (0);
   if (argv == NULL)
+  {
+    palloc_free_page (task_name);
+
+    child->parent->success_load = false;
+    sema_up(&child->parent->wait_load);
     thread_exit ();
+  }
 
   for (token = strtok_r (task_name, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
     argv[argc++] = token;
+
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -87,14 +113,26 @@ start_process (void *task_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
-  if (success)
-    save_arguments_to_stack (argv, argc, &if_.esp);
 
-  /* If load failed, quit. */
-  palloc_free_page (task_name);
-  palloc_free_page (argv);
+
   if (!success) 
+  {
+    palloc_free_page (task_name);
+    palloc_free_page (argv);
+
+    child->parent->success_load = false;
+    sema_up(&child->parent->wait_load);
     thread_exit ();
+  }
+  else
+  {
+    save_arguments_to_stack (argv, argc, &if_.esp);
+    palloc_free_page (task_name);
+    palloc_free_page (argv);
+
+    child->parent->success_load = true;
+    sema_up(&child->parent->wait_load);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -102,11 +140,13 @@ start_process (void *task_name_)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+    //printf("into process_start : start user program");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
 
-static void save_arguments_to_stack (char **argv, int argc, void **esp) {
+static void save_arguments_to_stack (char **argv, int argc, void **esp) 
+{
   void *args_addr[argc];
   int i;
   for (i = 0; i < argc; i++)
@@ -138,6 +178,7 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp) {
 
   *esp -= 4;
   memset (*esp, 0, 4);
+
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -152,7 +193,20 @@ static void save_arguments_to_stack (char **argv, int argc, void **esp) {
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for (;;) {}
+  struct thread *parent = thread_current();
+  struct thread *child = get_child_process(child_tid);
+  int child_exit_status;
+
+
+  if(child == NULL)
+    return -1;
+
+  sema_down(&child->wait_exit);
+
+  child_exit_status = child->exit_status;
+  remove_child_process(child);
+
+  return child_exit_status;
 }
 
 /* Free the current process's resources. */
@@ -161,6 +215,7 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -288,6 +343,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
+
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -600,4 +656,26 @@ remove_file (int fd)
           return;
         }
     }
+}
+
+struct thread * get_child_process(int pid)
+{
+  struct thread *parent = thread_current();
+  struct list_elem *e = NULL;
+  struct thread *child = NULL;
+
+  for(e = list_begin(&parent->child_list) ; e != list_end(&parent->child_list) ; e = list_next(e))
+  {
+    child = list_entry(e, struct thread, child_elem);
+    if(child->tid == pid)
+      return child;
+  }
+
+  return NULL;
+}
+
+void remove_child_process(struct thread *cp)
+{
+  list_remove(&cp->child_elem);
+  palloc_free_page(cp);
 }
