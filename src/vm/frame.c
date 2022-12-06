@@ -56,8 +56,8 @@ allocate_frame (enum palloc_flags flags, void *upage)
   return kpage;
 }
 
-void
-free_frame (void *kpage)
+static void
+internal_free_frame (void *kpage, bool should_free_page)
 {
   ASSERT (is_kernel_vaddr (kpage));
 
@@ -73,9 +73,22 @@ free_frame (void *kpage)
       entry = hash_entry (h_elem, struct frame_table_entry, elem);
       hash_delete (&frame_table, &entry->elem);
 
-      palloc_free_page (kpage);
+      if (should_free_page)
+        palloc_free_page (kpage);
       free (entry);
     }
 
   lock_release (&frame_table_lock);
+}
+
+void
+free_frame (void *kpage)
+{
+  internal_free_frame (kpage, true);
+}
+
+void
+free_frame_without_free_page (void *kpage)
+{
+  internal_free_frame (kpage, false);
 }
