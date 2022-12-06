@@ -152,7 +152,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 static void
 check_user_address_valid (void *uaddr)
 {
-  if (!is_user_vaddr (uaddr))
+  if (uaddr == NULL || !is_user_vaddr (uaddr))
     exit (-1);
 }
 
