@@ -130,6 +130,10 @@ struct thread
     bool success_load;
 #endif
 
+#ifdef VM
+    struct hash *spt;
+#endif
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
