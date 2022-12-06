@@ -124,7 +124,6 @@ bool
 has_entry_in_spt (struct hash *spt, void *upage)
 {
   ASSERT (spt != NULL);
-  ASSERT (upage != NULL);
 
   struct supplemental_page_table_entry entry_for_find;
   entry_for_find.upage = upage;
