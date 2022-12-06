@@ -154,9 +154,6 @@ check_user_address_valid (void *uaddr)
 {
   if (!is_user_vaddr (uaddr))
     exit (-1);
-
-  if (pagedir_get_page (thread_current ()->pagedir, uaddr) == NULL)
-    exit (-1);
 }
 
 static void
