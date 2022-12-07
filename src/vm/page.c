@@ -107,6 +107,27 @@ install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool wri
   return true;
 }
 
+bool
+install_allzero_entry_in_spt (struct hash *spt, void *upage)
+{
+  ASSERT (spt != NULL);
+  ASSERT (upage != NULL);
+
+  struct supplemental_page_table_entry *spte = malloc (sizeof (struct supplemental_page_table_entry));
+  if (spte == NULL)
+    return false;
+
+  spte->upage = upage;
+  spte->kpage = NULL;
+  spte->state = ALL_ZERO;
+  spte->dirty = false;
+
+  if(hash_insert (spt, &spte->elem) == NULL)
+    return true;
+
+  return false;
+}
+
 static struct supplemental_page_table_entry *
 get_entry_in_spt (struct hash *spt, void *upage)
 {
@@ -165,6 +186,32 @@ load_page_on_filesys (struct supplemental_page_table_entry* spte, uint32_t *page
 }
 
 bool
+load_page_on_allzero(struct supplemental_page_table_entry *spte, void *upage, uint32_t *pagedir)
+{
+  void *kpage = allocate_frame(PAL_USER, upage);
+
+  if(kpage == NULL)
+    return false;
+
+  memset(kpage, 0, PGSIZE);
+
+  if(!pagedir_set_page(pagedir, upage, kpage, true))
+  {
+    free_frame(kpage);
+    return false;
+  }
+
+  spte->kpage = kpage;
+  spte->state = ON_FRAME;
+
+  pagedir_set_dirty(pagedir, kpage, false);
+    
+  //vm_frame_unpin(kpage); 
+
+  return true;
+}
+
+bool
 load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
 {
   ASSERT (spt != NULL);
@@ -186,6 +233,7 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
     case SWAPPED_OUT:
       break;
     case ALL_ZERO:
+      result = load_page_on_allzero(spte, upage, pagedir);
       break;
     default:
       break;
@@ -194,41 +242,3 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
   return result;
 }
 
-bool 
-vaild_stack_size(void *upage)
-{
-  if((size_t)(PHYS_BASE - pg_round_down(upage)) <= MAX_STACK)
-    return true;
-
-  return false;
-}
-
-bool
-stack_growth(struct hash *spt, void *upage)
-{
-  if(!vaild_stack_size(upage))
-    return false;
-
-  void *kpage = allocate_frame(PAL_USER, upage);
-
-  if(kpage == NULL)
-    return false;
-
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  bool success = (pagedir_get_page (t->pagedir, upage) == NULL
-                  && pagedir_set_page (t->pagedir, upage, kpage, true));
-
-  success = success && install_frame_entry_in_spt (t->spt, upage, kpage, true);
-
-  if(success == false)
-  {
-    free_frame(kpage);
-    return false;
-  }
-
-  
-  return true;
-}
