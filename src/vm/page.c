@@ -239,6 +239,34 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
       break;
     }
 
+  if (result)
+    pagedir_set_dirty (pagedir, spte->upage, false);
+
   return result;
+}
+
+void
+spt_unmap (struct hash *spt, void *upage, uint32_t *pagedir, off_t offset, int size)
+{
+  struct supplemental_page_table_entry *spte = get_entry_in_spt (spt, upage);
+  if (spte == NULL)
+    return;
+
+  switch (spte->state)
+    {
+      case ON_FRAME:
+        ASSERT (spte->kpage != NULL);
+        if (spte->dirty || pagedir_is_dirty (pagedir, spte->upage))
+          file_write_at (spte->file, upage, size, offset);
+        free_frame (spte->kpage);
+        pagedir_clear_page (pagedir, upage);
+        break;
+      case ON_FILESYS:
+        break;
+      default:
+        PANIC ("you should not be here");
+        break;
+    }
+  hash_delete (spt, &spte->elem);
 }
 

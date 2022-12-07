@@ -5,11 +5,13 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
+#include "threads/malloc.h"
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 #include "devices/input.h"
+#include "vm/page.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -28,6 +30,8 @@ static int write (int fd, const void *buffer, unsigned size);
 static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
+
+static int mmap (int fd, void *addr);
 
 static struct lock filesys_lock;
 
@@ -142,6 +146,20 @@ syscall_handler (struct intr_frame *f UNUSED)
           close (*(int *) (args[0]));
           break;
         }
+      case SYS_MMAP:
+        {
+          void *args[2];
+          get_arguments (f->esp + 4, args, 2);
+          f->eax = mmap (*(int *) (args[0]), *(void **) (args[1]));
+          break;
+        }
+      case SYS_MUNMAP:
+        {
+          void *args[1];
+          get_arguments (f->esp + 4, args, 1);
+          munmap (*(int *) (args[0]));
+          break;
+        }
       default:
         {
           exit (-1);
@@ -191,7 +209,10 @@ exit (int status)
 static int
 exec (const char *cmd_line)
 {
-  return process_execute(cmd_line);
+  lock_acquire (&filesys_lock);
+  int pid = process_execute(cmd_line);
+  lock_release (&filesys_lock);
+  return pid;
 }
 
 static int
@@ -341,5 +362,110 @@ close (int fd)
 {
   lock_acquire (&filesys_lock);
   remove_file (fd);
+  lock_release (&filesys_lock);
+}
+
+static int
+mmap (int fd, void *addr)
+{
+  if (fd == 0 || fd == 1)
+    return -1;
+  if (addr == NULL || pg_ofs (addr) != 0)
+    return -1;
+
+  lock_acquire (&filesys_lock);
+  struct file *found_file = get_file (fd);
+  if (found_file == NULL)
+    {
+      lock_release (&filesys_lock);
+      return -1;
+    }
+
+  struct file *new_file = file_reopen (found_file);
+  if (new_file == NULL)
+    {
+      lock_release (&filesys_lock);
+      return -1;
+    }
+
+  int file_size = file_length (new_file);
+  if (file_size == 0)
+    {
+      lock_release (&filesys_lock);
+      return -1;
+    }
+
+  struct thread *t = thread_current ();
+  int i;
+  for (i = 0; i < file_size; i += PGSIZE)
+    {
+      if (has_entry_in_spt (t->spt, addr + i))
+        {
+          lock_release (&filesys_lock);
+          return -1;
+        }
+    }
+
+  for (i = 0; i < file_size; i += PGSIZE)
+    {
+      size_t page_read_bytes = file_size - i < PGSIZE ? file_size - i : PGSIZE;
+      size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+      install_filesys_entry_in_spt (t->spt, addr + i, new_file, i, page_read_bytes, page_zero_bytes, true);
+    }
+
+  struct mmap_descriptor *mmap_desc = malloc (sizeof (struct mmap_descriptor));
+  if (list_empty (&t->mmap_list))
+    mmap_desc->id = 1;
+  else
+    {
+      struct mmap_descriptor *last_desc =
+              list_entry (list_back (&t->mmap_list), struct mmap_descriptor, elem);
+      mmap_desc->id = last_desc->id + 1;
+    }
+  mmap_desc->file = new_file;
+  mmap_desc->size = file_size;
+  mmap_desc->addr = addr;
+  list_push_back (&t->mmap_list, &mmap_desc->elem);
+
+  lock_release (&filesys_lock);
+  return mmap_desc->id;
+}
+
+static struct mmap_descriptor *
+get_mmap_descriptor(int mapid)
+{
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  for (e = list_begin (&t->mmap_list); e != list_end (&t->mmap_list);
+       e = list_next (e))
+    {
+      struct mmap_descriptor *desc = list_entry (e, struct mmap_descriptor, elem);
+      if (desc->id == mapid)
+        return desc;
+    }
+  return NULL;
+}
+
+
+void
+munmap (int mapid)
+{
+  struct mmap_descriptor *mmap_desc = get_mmap_descriptor (mapid);
+  if (mmap_desc == NULL)
+    return;
+
+  struct thread *t = thread_current ();
+  lock_acquire (&filesys_lock);
+  int i;
+  for (i = 0; i < mmap_desc->size; i += PGSIZE)
+    {
+      int size = mmap_desc->size - i < PGSIZE ? mmap_desc->size - i : PGSIZE;
+      spt_unmap (t->spt, mmap_desc->addr + i, t->pagedir, i, size);
+    }
+  list_remove (&mmap_desc->elem);
+  file_close (mmap_desc->file);
+  free (mmap_desc);
   lock_release (&filesys_lock);
 }

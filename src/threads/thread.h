@@ -14,6 +14,14 @@ struct file_descriptor
     struct list_elem elem;  /* List element for thread's fd_table. */
   };
 
+struct mmap_descriptor
+{
+  int id;
+  void *addr;
+  struct file *file;
+  int size;
+  struct list_elem elem;  /* List element for thread's mmap_list. */
+};
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -133,6 +141,7 @@ struct thread
 #ifdef VM
     struct hash *spt;
     void *esp;
+    struct list mmap_list;
 #endif
 
     /* Owned by thread.c. */
