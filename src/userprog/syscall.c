@@ -48,6 +48,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
   int syscall_number = *(int *) (f->esp);
 
+  thread_current()->esp = f->esp;
 
   switch (syscall_number)
     {

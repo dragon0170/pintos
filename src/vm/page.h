@@ -1,6 +1,8 @@
 #include <hash.h>
 #include "filesys/off_t.h"
 
+#define MAX_STACK 0x800000
+
 enum page_state {
   ON_FRAME,
   ON_FILESYS,
@@ -32,3 +34,4 @@ bool install_filesys_entry_in_spt (struct hash *spt, void *upage, struct file *f
 bool has_entry_in_spt (struct hash *spt, void *upage);
 bool load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir);
 bool install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool writable);
+bool stack_growth(struct hash *spt, void *upage);

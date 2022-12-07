@@ -7,6 +7,8 @@
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/page.h"
+#include "threads/vaddr.h"
+#include "userprog/process.h"
 
 static unsigned
 spt_hash_func (const struct hash_elem *elem, void *aux UNUSED)
@@ -190,4 +192,43 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
     }
 
   return result;
+}
+
+bool 
+vaild_stack_size(void *upage)
+{
+  if((size_t)(PHYS_BASE - pg_round_down(upage)) <= MAX_STACK)
+    return true;
+
+  return false;
+}
+
+bool
+stack_growth(struct hash *spt, void *upage)
+{
+  if(!vaild_stack_size(upage))
+    return false;
+
+  void *kpage = allocate_frame(PAL_USER, upage);
+
+  if(kpage == NULL)
+    return false;
+
+  struct thread *t = thread_current ();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  bool success = (pagedir_get_page (t->pagedir, upage) == NULL
+                  && pagedir_set_page (t->pagedir, upage, kpage, true));
+
+  success = success && install_frame_entry_in_spt (t->spt, upage, kpage, true);
+
+  if(success == false)
+  {
+    free_frame(kpage);
+    return false;
+  }
+
+  
+  return true;
 }

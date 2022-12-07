@@ -13,6 +13,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
+bool is_stack_access (void * esp, void * address);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -151,6 +152,8 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+   printf("in page_fault handler \n");
+
   if (not_present)
     {
       struct thread *t = thread_current ();
@@ -160,8 +163,22 @@ page_fault (struct intr_frame *f)
       else
         {
           // TODO: Check if it is stack growing problem and handle stack growth
+            if(is_stack_access(f->esp, fault_addr) && stack_growth(t->spt, fault_page))
+            {
+               printf("stack growth finish \n");
+               return;
+            }
         }
     }
   exit (-1);
 }
 
+bool is_stack_access (void * esp, void * address)
+{
+   printf("in is_stack_access \n");
+	//If esp points to kernel address space then used saved user space esp
+	if(is_kernel_vaddr(esp))
+		esp = thread_current()->esp;
+	return (address < PHYS_BASE) && (address > (void*) 0x08048000)
+      && (address + 32 >= esp);
+}
