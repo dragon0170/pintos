@@ -32,3 +32,4 @@ bool install_filesys_entry_in_spt (struct hash *spt, void *upage, struct file *f
 bool has_entry_in_spt (struct hash *spt, void *upage);
 bool load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir);
 bool install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool writable);
+void spt_unmap (struct hash *spt, void *upage, uint32_t *pagedir, off_t offset, int size);

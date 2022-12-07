@@ -219,6 +219,12 @@ process_exit (void)
   uint32_t *pd;
 
 #ifdef VM
+  while (!list_empty (&cur->mmap_list))
+    {
+      struct mmap_descriptor *mmap_desc =
+              list_entry (list_begin (&cur->mmap_list), struct mmap_descriptor, elem);
+      munmap (mmap_desc->id);
+    }
   destroy_spt (cur->spt);
 #endif
 
