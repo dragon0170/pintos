@@ -151,7 +151,6 @@ page_fault(struct intr_frame *f)
    write = (f->error_code & PF_W) != 0;
    user = (f->error_code & PF_U) != 0;
 
-   //printf("in page_fault handler \n");
 
    if (not_present)
    {
@@ -159,13 +158,10 @@ page_fault(struct intr_frame *f)
       void *fault_page = pg_round_down(fault_addr);
       void *esp = user ? f->esp : t->esp;
 
-      //printf("%p\n", fault_page);
-
       if (has_entry_in_spt(t->spt, fault_page) && load_page_from_spt(t->spt, fault_page, t->pagedir))
          return;
       else if(is_stack_access(esp, fault_addr, f))
       {
-         // TODO: Check if it is stack growing problem and handle stack growth
          if(has_entry_in_spt(t->spt, fault_page) == false)
             install_allzero_entry_in_spt(t->spt, fault_page);
 
@@ -179,10 +175,8 @@ page_fault(struct intr_frame *f)
 
 bool is_stack_access(void *esp, void *fault_addr, struct intr_frame *f)
 {
-   //If esp points to kernel address space then used saved user space esp
    bool on_stack_frame = (esp <= fault_addr || fault_addr == f->esp - 4 || fault_addr == f->esp - 32);
    bool is_stack_addr  = (PHYS_BASE - MAX_STACK <= fault_addr && fault_addr < PHYS_BASE);
 
    return on_stack_frame && is_stack_addr;
-   //return (address < PHYS_BASE) && (address > (void *)0x08048000) && (address + 32 >= esp);
 }

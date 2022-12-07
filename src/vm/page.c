@@ -205,8 +205,6 @@ load_page_on_allzero(struct supplemental_page_table_entry *spte, void *upage, ui
   spte->state = ON_FRAME;
 
   pagedir_set_dirty(pagedir, kpage, false);
-    
-  //vm_frame_unpin(kpage); 
 
   return true;
 }
