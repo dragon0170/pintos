@@ -190,7 +190,10 @@ exit (int status)
 static int
 exec (const char *cmd_line)
 {
-  return process_execute(cmd_line);
+  lock_acquire (&filesys_lock);
+  int pid = process_execute(cmd_line);
+  lock_release (&filesys_lock);
+  return pid;
 }
 
 static int
