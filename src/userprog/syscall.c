@@ -31,6 +31,8 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
+static void load_and_pin_buffer_pages (const void *buffer, unsigned size);
+static void unpin_buffer_pages (const void *buffer, unsigned size);
 static int mmap (int fd, void *addr);
 
 static struct lock filesys_lock;
@@ -294,7 +296,9 @@ read (int fd, void *buffer, unsigned size)
           lock_release (&filesys_lock);
           return -1;
         }
+      load_and_pin_buffer_pages (buffer, size);
       int bytes_read = file_read (file, buffer, size);
+      unpin_buffer_pages (buffer, size);
       lock_release (&filesys_lock);
       return bytes_read;
     }
@@ -321,7 +325,9 @@ write (int fd, const void *buffer, unsigned size)
           lock_release (&filesys_lock);
           return -1;
         }
+      load_and_pin_buffer_pages (buffer, size);
       int bytes_written = file_write (file, buffer, size);
+      unpin_buffer_pages (buffer, size);
       lock_release (&filesys_lock);
       return bytes_written;
     }
@@ -410,7 +416,7 @@ mmap (int fd, void *addr)
       size_t page_read_bytes = file_size - i < PGSIZE ? file_size - i : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      install_filesys_entry_in_spt (t->spt, addr + i, new_file, i, page_read_bytes, page_zero_bytes, true);
+      install_mapped_file_entry_in_spt (t->spt, addr + i, new_file, i, page_read_bytes, page_zero_bytes, true);
     }
 
   struct mmap_descriptor *mmap_desc = malloc (sizeof (struct mmap_descriptor));
@@ -467,4 +473,26 @@ munmap (int mapid)
   file_close (mmap_desc->file);
   free (mmap_desc);
   lock_release (&filesys_lock);
+}
+
+static void
+load_and_pin_buffer_pages (const void *buffer, unsigned size)
+{
+  struct thread *t = thread_current ();
+  void *upage;
+  for (upage = pg_round_down (buffer); upage < buffer + size; upage += PGSIZE)
+    {
+      load_page_from_spt (t->spt, upage, t->pagedir, true);
+    }
+}
+
+static void
+unpin_buffer_pages (const void *buffer, unsigned size)
+{
+  struct thread *t = thread_current ();
+  void *upage;
+  for (upage = pg_round_down (buffer); upage < buffer + size; upage += PGSIZE)
+    {
+      unpin_page (t->spt, upage);
+    }
 }

@@ -7,6 +7,7 @@
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/page.h"
+#include "vm/swap.h"
 
 static unsigned
 spt_hash_func (const struct hash_elem *elem, void *aux UNUSED)
@@ -34,7 +35,7 @@ spt_destroy_func (struct hash_elem *elem, void *aux UNUSED)
     }
   else if (entry->state == SWAPPED_OUT)
     {
-      // TODO: call function for freeing swap by swap_index
+      swap_free (entry->swap_index);
     }
 
   free (entry);
@@ -71,6 +72,35 @@ install_filesys_entry_in_spt (struct hash *spt, void *upage, struct file *file, 
   spte->upage = upage;
   spte->kpage = NULL;
   spte->state = ON_FILESYS;
+  spte->from_mapped_file = false;
+  spte->dirty = false;
+  spte->file = file;
+  spte->file_offset = offset;
+  spte->file_read_bytes = page_read_bytes;
+  spte->file_zero_bytes = page_zero_bytes;
+  spte->writable = writable;
+
+  hash_insert (spt, &spte->elem);
+
+  return true;
+}
+
+bool
+install_mapped_file_entry_in_spt (struct hash *spt, void *upage, struct file *file, off_t offset,
+                                  uint32_t page_read_bytes, uint32_t page_zero_bytes, bool writable)
+{
+  ASSERT (spt != NULL);
+  ASSERT (upage != NULL);
+  ASSERT (file != NULL);
+
+  struct supplemental_page_table_entry *spte = malloc (sizeof (struct supplemental_page_table_entry));
+  if (spte == NULL)
+    return false;
+
+  spte->upage = upage;
+  spte->kpage = NULL;
+  spte->state = ON_FILESYS;
+  spte->from_mapped_file = true;
   spte->dirty = false;
   spte->file = file;
   spte->file_offset = offset;
@@ -97,7 +127,9 @@ install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool wri
   spte->upage = upage;
   spte->kpage = kpage;
   spte->state = ON_FRAME;
+  spte->from_mapped_file = false;
   spte->dirty = false;
+  spte->file = NULL;
   spte->writable = writable;
 
   hash_insert (spt, &spte->elem);
@@ -105,7 +137,7 @@ install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool wri
   return true;
 }
 
-static struct supplemental_page_table_entry *
+struct supplemental_page_table_entry *
 get_entry_in_spt (struct hash *spt, void *upage)
 {
   ASSERT (spt != NULL);
@@ -162,8 +194,31 @@ load_page_on_filesys (struct supplemental_page_table_entry* spte, uint32_t *page
   return true;
 }
 
+static bool
+load_page_on_swap (struct supplemental_page_table_entry* spte, uint32_t *pagedir)
+{
+  /* Get a page of memory. */
+  uint8_t *kpage = allocate_frame (PAL_USER, spte->upage);
+  if (kpage == NULL)
+    return false;
+  spte->kpage = kpage;
+
+  swap_in (spte->swap_index, spte->kpage);
+
+  /* Add the page to the process's address space. */
+  if (pagedir_get_page (pagedir, spte->upage) != NULL
+      || !pagedir_set_page (pagedir, spte->upage, spte->kpage, spte->writable))
+    {
+      free_frame (spte->kpage);
+      return false;
+    }
+
+  spte->state = ON_FRAME;
+  return true;
+}
+
 bool
-load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
+load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir, bool pinned)
 {
   ASSERT (spt != NULL);
   ASSERT (upage != NULL);
@@ -182,6 +237,7 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
       result = load_page_on_filesys (spte, pagedir);
       break;
     case SWAPPED_OUT:
+      result = load_page_on_swap (spte, pagedir);
       break;
     case ALL_ZERO:
       break;
@@ -192,7 +248,24 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir)
   if (result)
     pagedir_set_dirty (pagedir, spte->upage, false);
 
+  if (pinned)
+    pin_frame (spte->kpage);
+  else
+    unpin_frame (spte->kpage);
+
   return result;
+}
+
+void
+unpin_page (struct hash *spt, void *upage)
+{
+  ASSERT (spt != NULL);
+  ASSERT (upage != NULL);
+
+  struct supplemental_page_table_entry *spte = get_entry_in_spt (spt, upage);
+  if (spte == NULL)
+    PANIC ("no entry for provided upage");
+  unpin_frame (spte->kpage);
 }
 
 void
@@ -206,7 +279,7 @@ spt_unmap (struct hash *spt, void *upage, uint32_t *pagedir, off_t offset, int s
     {
       case ON_FRAME:
         ASSERT (spte->kpage != NULL);
-        if (spte->dirty || pagedir_is_dirty (pagedir, spte->upage))
+        if (pagedir_is_dirty (pagedir, spte->upage))
           file_write_at (spte->file, upage, size, offset);
         free_frame (spte->kpage);
         pagedir_clear_page (pagedir, upage);

@@ -594,6 +594,8 @@ install_page (void *upage, void *kpage, bool writable)
                   && pagedir_set_page (t->pagedir, upage, kpage, writable));
 
   success = success && install_frame_entry_in_spt (t->spt, upage, kpage, writable);
+  if (success)
+    unpin_frame (kpage);
 
   return success;
 }

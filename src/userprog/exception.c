@@ -155,7 +155,7 @@ page_fault (struct intr_frame *f)
     {
       struct thread *t = thread_current ();
       void *fault_page = pg_round_down (fault_addr);
-      if (has_entry_in_spt (t->spt, fault_page) && load_page_from_spt (t->spt, fault_page, t->pagedir))
+      if (has_entry_in_spt (t->spt, fault_page) && load_page_from_spt (t->spt, fault_page, t->pagedir, false))
         return;
       else
         {
