@@ -33,6 +33,7 @@
 #endif
 #ifdef VM
 #include "vm/frame.h"
+#include "vm/swap.h"
 #endif
 #ifdef FILESYS
 #include "devices/block.h"
@@ -134,12 +135,17 @@ main (void)
   filesys_init (format_filesys);
 #endif
 
+#ifdef VM
+  swap_init ();
+#endif
+
   printf ("Boot complete.\n");
   
   /* Run actions specified on kernel command line. */
   run_actions (argv);
 
   /* Finish up. */
+  swap_destroy ();
   shutdown ();
   thread_exit ();
 }
