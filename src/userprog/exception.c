@@ -158,14 +158,14 @@ page_fault(struct intr_frame *f)
       void *fault_page = pg_round_down(fault_addr);
       void *esp = user ? f->esp : t->esp;
 
-      if (has_entry_in_spt(t->spt, fault_page) && load_page_from_spt(t->spt, fault_page, t->pagedir))
+      if (has_entry_in_spt(t->spt, fault_page) && load_page_from_spt(t->spt, fault_page, t->pagedir, false))
          return;
       else if(is_stack_access(esp, fault_addr, f))
       {
          if(has_entry_in_spt(t->spt, fault_page) == false)
             install_allzero_entry_in_spt(t->spt, fault_page);
 
-         if(load_page_from_spt(t->spt, fault_page, t->pagedir))
+         if(load_page_from_spt(t->spt, fault_page, t->pagedir, false))
             return;
          
       }
