@@ -140,6 +140,7 @@ struct thread
 
 #ifdef VM
     struct hash *spt;
+    void *esp;
     struct list mmap_list;
 #endif
 

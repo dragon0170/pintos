@@ -2,9 +2,11 @@
 #include <string.h>
 #include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "threads/vaddr.h"
 #include "filesys/off_t.h"
 #include "filesys/file.h"
 #include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include "vm/frame.h"
 #include "vm/page.h"
 #include "vm/swap.h"
@@ -137,6 +139,27 @@ install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool wri
   return true;
 }
 
+bool
+install_allzero_entry_in_spt (struct hash *spt, void *upage)
+{
+  ASSERT (spt != NULL);
+  ASSERT (upage != NULL);
+
+  struct supplemental_page_table_entry *spte = malloc (sizeof (struct supplemental_page_table_entry));
+  if (spte == NULL)
+    return false;
+
+  spte->upage = upage;
+  spte->kpage = NULL;
+  spte->state = ALL_ZERO;
+  spte->dirty = false;
+
+  if(hash_insert (spt, &spte->elem) == NULL)
+    return true;
+
+  return false;
+}
+
 struct supplemental_page_table_entry *
 get_entry_in_spt (struct hash *spt, void *upage)
 {
@@ -218,6 +241,28 @@ load_page_on_swap (struct supplemental_page_table_entry* spte, uint32_t *pagedir
 }
 
 bool
+load_page_on_allzero(struct supplemental_page_table_entry *spte, void *upage, uint32_t *pagedir)
+{
+  void *kpage = allocate_frame(PAL_USER, upage);
+
+  if(kpage == NULL)
+    return false;
+
+  memset(kpage, 0, PGSIZE);
+
+  if(!pagedir_set_page(pagedir, upage, kpage, true))
+  {
+    free_frame(kpage);
+    return false;
+  }
+
+  spte->kpage = kpage;
+  spte->state = ON_FRAME;
+
+  return true;
+}
+
+bool
 load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir, bool pinned)
 {
   ASSERT (spt != NULL);
@@ -240,6 +285,7 @@ load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir, bool pinne
       result = load_page_on_swap (spte, pagedir);
       break;
     case ALL_ZERO:
+      result = load_page_on_allzero(spte, upage, pagedir);
       break;
     default:
       break;
@@ -292,3 +338,4 @@ spt_unmap (struct hash *spt, void *upage, uint32_t *pagedir, off_t offset, int s
     }
   hash_delete (spt, &spte->elem);
 }
+

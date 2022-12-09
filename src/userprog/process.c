@@ -559,6 +559,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
+  //printf("in setup stack \n");
   uint8_t *kpage;
   bool success = false;
 

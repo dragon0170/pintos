@@ -16,3 +16,4 @@ void remove_file (int fd);
 
 struct thread * get_child_process(int pid);
 void remove_child_process(struct thread *cp);
+//static bool install_page (void *upage, void *kpage, bool writable);

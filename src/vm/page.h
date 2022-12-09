@@ -1,6 +1,8 @@
 #include <hash.h>
 #include "filesys/off_t.h"
 
+#define MAX_STACK 0x800000
+
 enum page_state {
   ON_FRAME,
   ON_FILESYS,
@@ -36,4 +38,7 @@ struct supplemental_page_table_entry * get_entry_in_spt (struct hash *spt, void 
 bool load_page_from_spt (struct hash *spt, void *upage, uint32_t *pagedir, bool pinned);
 void unpin_page (struct hash *spt, void *upage);
 bool install_frame_entry_in_spt (struct hash *spt, void *upage, void *kpage, bool writable);
+bool install_allzero_entry_in_spt (struct hash *spt, void *upage);
+bool load_page_on_allzero(struct supplemental_page_table_entry *spte, void *upage, uint32_t *pagedir);
 void spt_unmap (struct hash *spt, void *upage, uint32_t *pagedir, off_t offset, int size);
+
